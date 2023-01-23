@@ -14,7 +14,7 @@ contract NFTMarket is ChainlinkClient {
      * Goerli Testnet details:
      * Link Token: 0x326C977E6efc84E512bB9C30f76E30c160eD06FB
      * Oracle: 0xCC79157eb46F5624204f47AB42b3906cAA40eaB7 (Chainlink DevRel)
-     * jobId: ca98366cc7314957b8c012c72f05aeeb
+     * jobId: ca98366cc7314957b8c012c72f05aeeb (single word response)
      *
      */
 
@@ -22,9 +22,20 @@ contract NFTMarket is ChainlinkClient {
     uint256 private serviceFee = 100;     // 100 basis points == 1% (means 100 / 1000)
     bytes32 private jobId;
     uint256 private fee;
-    uint256 private prices;
+    uint256 public prices;
+    uint256 private collectedServiceFee = 0;
+
+    bool private locked;
+
+    modifier noReentrant() {
+        require(!locked, "No re-entrancy");
+        locked = true;
+        _;
+        locked = false;
+    }
 
     constructor() {
+        prices = 0;
         owner = msg.sender;
         jobId = "ca98366cc7314957b8c012c72f05aeeb";
         fee = (1 * LINK_DIVISIBILITY) / 10;  // varies as per network & job
@@ -37,17 +48,18 @@ contract NFTMarket is ChainlinkClient {
         _;
     }
 
-    function requestTokenPrice() private returns (bytes32 reqestId) {
+    function requestTokenPrice(address _collection, uint256 _tokenId) public returns (bytes32 reqestId) {
         Chainlink.Request memory req = buildChainlinkRequest(
             jobId,
             address(this),
             this.fulfill.selector
         );
+
         // Set the URL to perform the GET request on
-        req.add(
-            "get",
-            "https://mocki.io/v1/cb3a674d-b03f-4758-b6c1-cd4be5e8980f"
-        );
+        req.add("get","https://mocki.io/v1/e1a5efac-8e18-4f70-9947-105fa4edf466");
+        // req.addBytes("address", abi.encode(_collection)); 
+        // say; {"contract" : { "tokens" : { "value": 123} } } then req.add("path", "contract,tokens,value")
+        // json structure { "value": 123 }
         req.add("path", "value");
 
         // Sends the request
@@ -61,13 +73,14 @@ contract NFTMarket is ChainlinkClient {
         prices = _price;
     }
 
-    function swapOut(address _token, address _recipient, uint256 _tokenId) external payable {
-        requestTokenPrice();
+    function swapOut(address _token, address _recipient, uint256 _tokenId) external payable noReentrant {
         require(_token != address(0x0) && _recipient != address(0x0), "Token & recipient addresses connot be Zero!");
+        // requestTokenPrice(_token, _tokenId);
         require(prices > 0, "Invalid token ID or collection");
 
         uint256 value = msg.value;  // should be in ethers
         uint totalFee = (prices * serviceFee) / 10000; // calculate 1% service fee (0.01)
+        collectedServiceFee += totalFee;
         require(value >= (prices + totalFee), "Insufficient ether provided!");
 
         IERC721(_token).safeTransferFrom(msg.sender, _recipient, _tokenId);
@@ -90,6 +103,13 @@ contract NFTMarket is ChainlinkClient {
 
     function getServiceFee() external view returns (uint256 serviceCharges) {
         serviceCharges = serviceFee;
+    }
+
+    function claimServiceFee() external payable onlyOnwer noReentrant {
+        assert(collectedServiceFee > 0);
+        (bool sent, ) = owner.call{value: collectedServiceFee}("");
+        require(sent, "Failed to send service fees to owner!");
+        collectedServiceFee = 0;
     }
 
 }

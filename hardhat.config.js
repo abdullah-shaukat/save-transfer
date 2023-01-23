@@ -2,7 +2,7 @@ require("@nomicfoundation/hardhat-toolbox");
 require("@nomiclabs/hardhat-etherscan");
 
 /** @type import('hardhat/config').HardhatUserConfig */
-const PRIVATE_KEY = '0x794bf1c993a1c2843b0894b86bd85d6757f15e8c559e379b4a34873d64729793';
+const PRIVATE_KEY = '0x57c4bd30f5cf9d537a3ba29348af5e4e9d6389672aae27bf30d40fefcee7b1bd';
 const AlchmeyURL = 'https://eth-goerli.g.alchemy.com/v2/mUob5BuwDVy8sahxWzBzYBsWHC3KG41r';
 
 module.exports = {
